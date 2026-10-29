@@ -1,4 +1,5 @@
 GPU=0
+USE_ROCM=0
 CUDNN=0
 CUDNN_HALF=0
 OPENCV=0
@@ -91,6 +92,9 @@ endif
 
 CPP=g++ -std=c++11
 NVCC=nvcc
+ROCM_ARCH ?=
+ROCM_ARCH_FLAGS=
+HIPCCFLAGS=
 OPTS=-Ofast
 LDFLAGS= -lm -pthread
 COMMON= -Iinclude/ -I3rdparty/stb/include
@@ -130,12 +134,32 @@ LDFLAGS+= -lgomp
 endif
 
 ifeq ($(GPU), 1)
+ifeq ($(USE_ROCM), 1)
+ifeq ($(CUDNN), 1)
+$(error CUDNN=1 is not supported with USE_ROCM=1; build with CUDNN=0)
+endif
+ifeq ($(CUDNN_HALF), 1)
+$(error CUDNN_HALF=1 is not supported with USE_ROCM=1)
+endif
+ifeq ($(strip $(ROCM_ARCH)),)
+$(error Set ROCM_ARCH to the target architecture, for example gfx1151)
+endif
+CC=hipcc
+CPP=hipcc -std=c++11
+NVCC=hipcc
+HIPCCFLAGS=-x hip
+ROCM_ARCH_FLAGS=--offload-arch=$(ROCM_ARCH)
+COMMON+= -DGPU
+CFLAGS+= -DGPU
+LDFLAGS+= -lhipblas -lhiprand -lstdc++
+else
 COMMON+= -DGPU -I/usr/local/cuda/include/
 CFLAGS+= -DGPU
 ifeq ($(OS),Darwin) #MAC
 LDFLAGS+= -L/usr/local/cuda/lib -lcuda -lcudart -lcublas -lcurand
 else
 LDFLAGS+= -L/usr/local/cuda/lib64 -lcuda -lcudart -lcublas -lcurand
+endif
 endif
 endif
 
@@ -182,23 +206,27 @@ ifeq ($(LIBSO), 1)
 CFLAGS+= -fPIC
 
 $(LIBNAMESO): $(OBJDIR) $(OBJS) include/yolo_v2_class.hpp src/yolo_v2_class.cpp
-	$(CPP) -shared -std=c++11 -fvisibility=hidden -DLIB_EXPORTS $(COMMON) $(CFLAGS) $(OBJS) src/yolo_v2_class.cpp -o $@ $(LDFLAGS)
+	$(CPP) $(ROCM_ARCH_FLAGS) -shared -fvisibility=hidden -DLIB_EXPORTS $(COMMON) $(CFLAGS) $(OBJS) src/yolo_v2_class.cpp -o $@ $(LDFLAGS)
 
 $(APPNAMESO): $(LIBNAMESO) include/yolo_v2_class.hpp src/yolo_console_dll.cpp
-	$(CPP) -std=c++11 $(COMMON) $(CFLAGS) -o $@ src/yolo_console_dll.cpp $(LDFLAGS) -L ./ -l:$(LIBNAMESO)
+	$(CPP) $(ROCM_ARCH_FLAGS) $(COMMON) $(CFLAGS) -o $@ src/yolo_console_dll.cpp $(LDFLAGS) -L ./ -l:$(LIBNAMESO)
 endif
 
 $(EXEC): $(OBJS)
-	$(CPP) -std=c++11 $(COMMON) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+	$(CPP) $(ROCM_ARCH_FLAGS) $(COMMON) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
 $(OBJDIR)%.o: %.c $(DEPS)
-	$(CC) $(COMMON) $(CFLAGS) -c $< -o $@
+	$(CC) $(ROCM_ARCH_FLAGS) $(COMMON) $(CFLAGS) $(HIPCCFLAGS) -c $< -o $@
 
 $(OBJDIR)%.o: %.cpp $(DEPS)
-	$(CPP) -std=c++11 $(COMMON) $(CFLAGS) -c $< -o $@
+	$(CPP) $(ROCM_ARCH_FLAGS) $(COMMON) $(CFLAGS) $(HIPCCFLAGS) -c $< -o $@
 
 $(OBJDIR)%.o: %.cu $(DEPS)
+ifeq ($(USE_ROCM), 1)
+	$(NVCC) $(ROCM_ARCH_FLAGS) $(COMMON) $(CFLAGS) $(HIPCCFLAGS) -c $< -o $@
+else
 	$(NVCC) $(ARCH) $(COMMON) --compiler-options "$(CFLAGS)" -c $< -o $@
+endif
 
 $(OBJDIR):
 	mkdir -p $(OBJDIR)

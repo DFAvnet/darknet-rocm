@@ -19,7 +19,6 @@ int gpu_index = 0;
 #include <stdio.h>
 
 #ifndef USE_CMAKE_LIBS
-#pragma comment(lib, "cuda.lib")
 
 #ifdef CUDNN
 #pragma comment(lib, "cudnn.lib")

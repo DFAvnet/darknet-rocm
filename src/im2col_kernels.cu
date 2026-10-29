@@ -12,19 +12,30 @@
 
 template<typename T1, typename T2>
 __device__ inline T1 __shfl_custom(T1 val, T2 lane) {
+#if defined(__HIP_PLATFORM_AMD__)
+    const int subgroup_offset = (warpSize == 64) ? (threadIdx.x & 32) : 0;
+    return __shfl(val, lane + subgroup_offset);
+#else
 #if CUDART_VERSION >= 9000
     return __shfl_sync(FULL_MASK, val, lane);
 #else
     return __shfl(val, lane);
 #endif
+#endif
 }
 
 template<typename T>
 __device__ inline uint32_t __ballot_custom(T val) {
+#if defined(__HIP_PLATFORM_AMD__)
+    const uint64_t ballot = (uint64_t)__ballot(val);
+    const int subgroup_offset = (warpSize == 64) ? (threadIdx.x & 32) : 0;
+    return (uint32_t)(ballot >> subgroup_offset);
+#else
 #if CUDART_VERSION >= 9000
     return __ballot_sync(FULL_MASK, val);
 #else
     return __ballot(val);
+#endif
 #endif
 }
 

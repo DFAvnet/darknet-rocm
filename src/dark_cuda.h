@@ -17,6 +17,7 @@ extern int gpu_index;
 
 #define BLOCK 512
 #define FULL_MASK 0xffffffff
+// The binary convolution kernels pack 32 values into each uint32_t word.
 #define WARP_SIZE 32
 #define BLOCK_TRANSPOSE32 256
 

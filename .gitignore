@@ -70,3 +70,5 @@ uselib_track
 darknet
 kmeansiou
 vcpkg/
+.knowledge
+.gitignore

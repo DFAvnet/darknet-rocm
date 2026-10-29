@@ -295,6 +295,38 @@ You can get cfg-files by path: `darknet/cfg/`
 - **OpenDataCam** - It detects, tracks and counts moving objects by using YOLOv4: https://github.com/opendatacam/opendatacam#-hardware-pre-requisite
 - **Netron** - Visualizer for neural networks: https://github.com/lutzroeder/netron
 
+### Building with ROCm/HIP
+
+Run from the repository root on the ROCm target using the official development
+container. Create an empty output directory beside the checkout first:
+
+```bash
+mkdir -p ../darknet-rocm-build
+docker run --rm --user "$(id -u):$(id -g)" \
+  --device=/dev/kfd --device=/dev/dri --group-add video \
+  -e LD_LIBRARY_PATH=/opt/rocm/lib \
+  -e ROCM_ARCH \
+  -e DARKNET_ROCM_BUILD_DIR=/workspace/build \
+  -v "$PWD":/workspace/src \
+  -v "$PWD/../darknet-rocm-build":/workspace/build \
+  -w /workspace/src \
+  rocm/dev-ubuntu-24.04:latest bash scripts/build_amd.sh
+```
+
+The script detects the GPU architecture with `amdgpu-arch` and builds in a
+separate staging directory, leaving the CUDA sources untouched. Set
+`ROCM_ARCH=gfx1151` to choose Strix Halo explicitly, or set
+`DARKNET_ROCM_BUILD_DIR` to an empty directory outside this checkout to keep
+the converted sources and build outputs at a known path. The resulting
+executable is `../darknet-rocm-build/darknet`.
+
+This follows the existing `os-hackathon/darknet` HIPify/hipcc approach, with
+isolated conversion and an AMD-specific fix for its 32-bit packed-binary
+kernels. ROCm builds use Darknet's HIPified GPU kernels and hipBLAS/hipRAND;
+cuDNN/MIOpen, half-precision cuDNN paths, CUDA graph capture, and CUDA-OpenGL
+interop are not enabled. Validate inference and training on the target GPU
+before deployment.
+
 #### Datasets
 
 - MS COCO: use `./scripts/get_coco_dataset.sh` to get labeled MS COCO detection dataset

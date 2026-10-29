@@ -351,18 +351,20 @@ void transpose_32x32_bits_my(uint32_t *A, uint32_t *B, int lda, int ldb)
 }
 */
 
-#ifndef GPU
-uint8_t reverse_8_bit(uint8_t a) {
+// Provisional HIP fix: transpose_bin still calls the host transpose helper.
+// Keep its CPU implementation available; host/device routing needs review.
+#if !defined(GPU) || defined(__HIP_PLATFORM_AMD__)
+static uint8_t host_reverse_8_bit(uint8_t a) {
     return ((a * 0x0802LU & 0x22110LU) | (a * 0x8020LU & 0x88440LU)) * 0x10101LU >> 16;
 }
 
 uint32_t reverse_32_bit(uint32_t a)
 {
     // unsigned int __rbit(unsigned int val) // for ARM    //__asm__("rbit %0, %1\n" : "=r"(output) : "r"(input));
-    return (reverse_8_bit(a >> 24) << 0) |
-        (reverse_8_bit(a >> 16) << 8) |
-        (reverse_8_bit(a >> 8) << 16) |
-        (reverse_8_bit(a >> 0) << 24);
+    return (host_reverse_8_bit(a >> 24) << 0) |
+        (host_reverse_8_bit(a >> 16) << 8) |
+        (host_reverse_8_bit(a >> 8) << 16) |
+        (host_reverse_8_bit(a >> 0) << 24);
 }
 
 #define swap(a0, a1, j, m) t = (a0 ^ (a1 >>j)) & m; a0 = a0 ^ t; a1 = a1 ^ (t << j);
@@ -420,6 +422,9 @@ void transpose_32x32_bits_reversed_diagonale(uint32_t *A, uint32_t *B, int m, in
 }
 
 
+#endif
+
+#ifndef GPU
 void transpose_8x8_bits_my(unsigned char *A, unsigned char *B, int lda, int ldb)
 {
     unsigned x, y;
